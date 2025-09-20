@@ -1,4 +1,3 @@
-cat src/main.cpp
 #include <Core/Component.hpp>
 #include <Core/Entity.hpp>
 #include <Core/Game.hpp>
