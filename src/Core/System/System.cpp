@@ -1,95 +1,181 @@
-#include "Game.hpp"
+#include "System.hpp"
 
+#include "Core/Component.hpp"
+#include "Core/Entity.hpp"
+#include "Helper.hpp"
 #include "IO/Events/Events.hpp"
 #include "IO/System/EventLog.hpp"
-#include "System/System.hpp"
 
+#include <algorithm>
 #include <cstdint>
-#include <sstream>
 
 namespace sw::core
 {
-	Game::Game(uint32_t width, uint32_t height) :
-			width_(width),
-			height_(height)
-	{
-		RegisterSystems();
-		EventLog::log(tick_, io::MapCreated{width_, height});
-	}
 
-	void Game::CheckCoord(uint32_t x, uint32_t y)
+	uint32_t MarchSystem::Apply(uint32_t tick, std::vector<std::shared_ptr<Entity>>& entities) const
 	{
-		if (x < width_ && y < height_)
+		uint32_t acted = 0;
+		for (auto& entity : entities)
 		{
-			return;
-		}
-		std::stringstream err_msg;
-		err_msg << "The coord (" << x << ", " << y << ") is out of the map!";
-		throw std::logic_error(err_msg.str());
-	}
-
-	void Game::AddEntity(std::shared_ptr<Entity>&& entity)
-	{
-		auto& pos = entity->GetComponent<Position>(ComponentType::Position);
-		uint32_t x = pos.x;
-		uint32_t y = pos.y;
-		CheckCoord(x, y);
-		for (auto& added_entity : entities_)
-		{
-			if (!added_entity->ContainsComponent(ComponentType::Position))
+			if (entity->ContainsComponent(ComponentType::HasActed))
 			{
 				continue;
 			}
-			auto& added_entity_pos = added_entity->GetComponent<Position>(ComponentType::Position);
-			if (pos == added_entity_pos)
-			{
-				std::stringstream err_msg;
-				err_msg << "The coord (" << x << ", " << y << ") already occupied!";
-				throw std::logic_error(err_msg.str());
-			}
-		}
-		entities_.emplace_back(std::move(entity));
-		auto& e = entities_.back();
-		EventLog::log(tick_, io::UnitSpawned{e->Id, e->UnitType, x, y});
-	}
-
-	void Game::AddMarch(uint32_t id, uint32_t x, uint32_t y)
-	{
-		CheckCoord(x, y);
-		for (auto& entity : entities_)
-		{
-			if (entity->Id != id)
+			if (!entity->ContainsComponent(ComponentType::March))
 			{
 				continue;
 			}
-			entity->AddComponent(ComponentType::March, March{.target = {x, y}});
+			if (!entity->ContainsComponent(ComponentType::Position))
+			{
+				throw std::logic_error("Entity can move, but doesn't have position");
+			}
+
+			auto& movable = entity->GetComponent<March>(ComponentType::March);
 			auto& pos = entity->GetComponent<Position>(ComponentType::Position);
-			uint32_t start_x = pos.x;
-			uint32_t start_y = pos.y;
-			EventLog::log(tick_, io::MarchStarted{id, start_x, start_y, x, y});
-			break;
+
+			pos.x += utils::GetMoveStep(pos.x, movable.target.x, movable.speed);
+			pos.y += utils::GetMoveStep(pos.y, movable.target.y, movable.speed);
+
+			EventLog::log(tick, io::UnitMoved{entity->Id, static_cast<uint32_t>(pos.x), static_cast<uint32_t>(pos.y)});
+
+			if (pos == movable.target)
+			{
+				entity->RemoveComponent(ComponentType::March);
+				EventLog::log(
+					tick, io::MarchEnded{entity->Id, static_cast<uint32_t>(pos.x), static_cast<uint32_t>(pos.y)});
+			}
+
+			entity->AddComponent(ComponentType::HasActed, HasActed{});
+			++acted;
 		}
+		return acted;
 	}
 
-	bool Game::DoTick()
+	std::optional<io::UnitAttacked> AttackSystem::DoAttack(
+		std::shared_ptr<Entity>& entity, std::vector<std::shared_ptr<Entity>>& entities)
 	{
-		uint32_t score = 0;
-		for (const auto& system : systems_)
+		if (entity->ContainsComponent(ComponentType::Melee))
 		{
-			score = system->Apply(tick_, entities_);
+			auto enemies = utils::FindNearbyEntities(entity, entities, 0, 1);
+			std::shared_ptr<Entity> enemy = utils::GetRandomEntity(enemies);
+			if (enemy)
+			{
+				auto& melee = entity->GetComponent<Melee>(ComponentType::Melee);
+				auto& enemy_health = enemy->GetComponent<Health>(ComponentType::Health);
+				auto damage = std::min(melee.strength, enemy_health.health);
+				enemy_health.health -= damage;
+				return io::UnitAttacked{entity->Id, enemy->Id, damage, enemy_health.health};
+			}
 		}
-		++tick_;
-		return score > 0;
+
+		if (!entity->ContainsComponent(ComponentType::Range))
+		{
+			return {};
+		}
+
+		auto& range = entity->GetComponent<Range>(ComponentType::Range);
+
+		auto enemies = utils::FindNearbyEntities(entity, entities, range.range_from, range.range_to);
+		std::shared_ptr<Entity> enemy = utils::GetRandomEntity(enemies);
+		if (!enemy)
+		{
+			return {};
+		}
+
+		auto& enemy_health = enemy->GetComponent<Health>(ComponentType::Health);
+		auto damage = std::min(range.agility, enemy_health.health);
+		enemy_health.health -= damage;
+		if (enemy_health.health == 0)
+		{
+			enemy->AddComponent(ComponentType::Dead, Dead{});
+		}
+		return io::UnitAttacked{entity->Id, enemy->Id, damage, enemy_health.health};
 	}
 
-	void Game::RegisterSystems()
+	uint32_t AttackSystem::Apply(uint32_t tick, std::vector<std::shared_ptr<Entity>>& entities) const
 	{
-		// Emplace order matters
-		// Maybe add priority, but in that case it looks unnecessary
-		systems_.emplace_back(std::make_unique<AttackSystem>());
-		systems_.emplace_back(std::make_unique<MarchSystem>());
-		systems_.emplace_back(std::make_unique<FinalizeMoveSystem>());
-		systems_.emplace_back(std::make_unique<ScoreSystem>());
+		uint32_t acted = 0;
+		// Find enemies for attask is O(n) => this mehthod has O(n^2) complexity
+		// It possible improve if use grid/map with coords
+		for (auto& entity : entities)
+		{
+			if (entity->ContainsComponent(ComponentType::HasActed))
+			{
+				continue;
+			}
+
+			bool can_attack
+				= entity->ContainsComponent(ComponentType::Melee) | entity->ContainsComponent(ComponentType::Range);
+
+			if (!can_attack)
+			{
+				continue;
+			}
+
+			if (!entity->ContainsComponent(ComponentType::Position))
+			{
+				throw std::logic_error(
+					"std::shared_ptr<Entity> doesn't have Position component and can't detect enemy arround him");
+			}
+			auto event = DoAttack(entity, entities);
+
+			if (!event)
+			{
+				continue;
+			}
+
+			EventLog::log(tick, std::move(event.value()));
+			entity->AddComponent(ComponentType::HasActed, HasActed{});
+			++acted;
+		}
+		return acted;
+	}
+
+	uint32_t FinalizeMoveSystem::Apply(uint32_t tick, std::vector<std::shared_ptr<Entity>>& entities) const
+	{
+		// remove died entities
+		auto end_it = std::remove_if(
+			entities.begin(),
+			entities.end(),
+			[tick](const std::shared_ptr<Entity>& e)
+			{
+				bool dead = e->ContainsComponent(ComponentType::Dead);
+				if (dead)
+				{
+					EventLog::log(tick, io::UnitDied{e->Id});
+				}
+				return dead;
+			});
+
+		entities.erase(end_it, entities.end());
+
+		for (auto& entity : entities)
+		{
+			if (entity->ContainsComponent(ComponentType::HasActed))
+			{
+				entity->RemoveComponent(ComponentType::HasActed);
+			}
+		}
+		return entities.size();
+	}
+
+	uint32_t ScoreSystem::Apply(uint32_t tick, std::vector<std::shared_ptr<Entity>>& entities) const
+	{
+		if (entities.size() <= 1)
+		{
+			return 0;
+		}
+		uint32_t total_score = 0;
+
+		// O(n^2) for the same reason as above
+		for (auto& entity : entities)
+		{
+			if (utils::HasNextMoveActivity(entity, entities))
+			{
+				++total_score;
+			}
+		}
+		return total_score;
 	}
 
 }  // sw::core
