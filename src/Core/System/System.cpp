@@ -64,6 +64,10 @@ namespace sw::core
 				auto& enemy_health = enemy->GetComponent<Health>(ComponentType::Health);
 				auto damage = std::min(melee.strength, enemy_health.health);
 				enemy_health.health -= damage;
+				if (enemy_health.health == 0)
+				{
+					enemy->AddComponent(ComponentType::Dead, Dead{});
+				}
 				return io::UnitAttacked{entity->Id, enemy->Id, damage, enemy_health.health};
 			}
 		}
