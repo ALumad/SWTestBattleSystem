@@ -27,8 +27,8 @@ namespace sw::core::utils
 	{
 		auto& pos = target->GetComponent<Position>(ComponentType::Position);
 		std::vector<std::shared_ptr<Entity>> result;
-		int radius_from_sqr = radius_from * radius_from;
-		int radius_to_sqr = radius_to * radius_to;
+		uint32_t radius_from_sqr = radius_from * radius_from;
+		uint32_t radius_to_sqr = radius_to * radius_to;
 
 		for (const auto& e : entities)
 		{
