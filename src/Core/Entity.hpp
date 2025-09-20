@@ -39,7 +39,6 @@ namespace sw::core
 
 	private:
 		std::unordered_map<ComponentType, DynamicComponent> components_;
-		// if we will have any items, are they part of Entity or not?
 	};
 
 	// Bind CompnentType with Component
