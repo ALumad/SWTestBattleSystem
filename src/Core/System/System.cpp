@@ -30,15 +30,15 @@ namespace sw::core
 				throw std::logic_error("Entity can move, but doesn't have position");
 			}
 
-			auto& movable = entity->GetComponent<March>(ComponentType::March);
+			auto& march = entity->GetComponent<March>(ComponentType::March);
 			auto& pos = entity->GetComponent<Position>(ComponentType::Position);
 
-			pos.x += utils::GetMoveStep(pos.x, movable.target.x, movable.speed);
-			pos.y += utils::GetMoveStep(pos.y, movable.target.y, movable.speed);
+			pos.x += utils::GetMoveStep(pos.x, march.target.x, march.speed);
+			pos.y += utils::GetMoveStep(pos.y, march.target.y, march.speed);
 
 			EventLog::log(tick, io::UnitMoved{entity->Id, static_cast<uint32_t>(pos.x), static_cast<uint32_t>(pos.y)});
 
-			if (pos == movable.target)
+			if (pos == march.target)
 			{
 				entity->RemoveComponent(ComponentType::March);
 				EventLog::log(
