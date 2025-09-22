@@ -34,7 +34,7 @@ namespace sw::core
 			return std::get<TComponent>(components_[type]);
 		}
 
-		const uint32_t Id;
+		const uint32_t Id{};
 		const std::string UnitType{};
 
 	private:
