@@ -24,35 +24,35 @@ namespace sw::core
 	struct Position
 	{
 		// because i dont want to think about overflow thats why int64
-		int64_t x;
-		int64_t y;
-		auto operator<=>(const Position& other) const = default;
+		int64_t x{};
+		int64_t y{};
+		bool operator == (const Position& other) const = default;
 	};
 
 	using Target = Position;
 
 	struct March
 	{
-		Target target;
+		Target target{};
 		uint32_t speed{1};	// seems speed is always >= 0, or it's something about speed + direction = vilocity(?).. idk
 	};
 
 	// If an entity is unkillable: it doesn't have Health, or have const Health, or have unkillable component?
 	struct Health
 	{
-		uint32_t health;
+		uint32_t health{};
 	};
 
 	struct Melee
 	{
-		uint32_t strength;
+		uint32_t strength{};
 	};
 
 	struct Range
 	{
-		uint32_t agility;
-		uint32_t range_from;
-		uint32_t range_to;
+		uint32_t agility{};
+		uint32_t range_from{};
+		uint32_t range_to{};
 	};
 
 	struct HasActed
