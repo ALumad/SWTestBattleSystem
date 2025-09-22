@@ -23,8 +23,8 @@ namespace sw::core
 		std::vector<std::shared_ptr<Entity>> entities_;
 		std::vector<std::unique_ptr<ISystem>> systems_;
 
-		uint32_t height_;
-		uint32_t width_;
+		uint32_t height_{};
+		uint32_t width_{};
 		uint32_t tick_{1};
 	};
 }  // sw::core
