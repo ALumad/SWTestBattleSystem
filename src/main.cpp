@@ -1,6 +1,9 @@
+#include "Core/System/System.hpp"
+
 #include <Core/Component.hpp>
 #include <Core/Entity.hpp>
 #include <Core/Game.hpp>
+#include <Features/UserSystem.hpp>
 #include <Features/Warriors.hpp>
 #include <IO/Commands/Commands.hpp>
 #include <IO/System/CommandParser.hpp>
@@ -22,15 +25,18 @@ int main(int argc, char** argv)
 		throw std::runtime_error("Error: File not found - " + std::string(argv[1]));
 	}
 
+	auto game = std::make_unique<core::Game>();
+	game->RegisterSystem(core::SystemCategory::Effect, std::make_unique<feature::AttackMeleeSystem>())
+		.RegisterSystem(core::SystemCategory::Effect, std::make_unique<feature::AttackRangeSystem>())
+		.RegisterSystem(core::SystemCategory::Movement, std::make_unique<feature::MarchSystem>());
+
 	io::CommandParser parser;
-	std::unique_ptr<core::Game> game;
-	parser.add<io::CreateMap>([&](auto command) { game = std::make_unique<core::Game>(command.width, command.height); })
+	parser.add<io::CreateMap>([&](auto command) { game->InitMap(command.width, command.height); })
 		.add<io::SpawnSwordsman>([&](auto command) { game->AddEntity(sw::feature::CreateSwordsman(command)); })
 		.add<io::SpawnHunter>([&](auto command) { game->AddEntity(sw::feature::CreateHunter(command)); })
 		.add<io::March>([&](auto command) { game->AddMarch(command.unitId, command.targetX, command.targetY); });
-
-	std::cout << "\n\nEvents:\n";
 	parser.parse(file);
+
 	bool has_next_move = true;
 	while (has_next_move)
 	{
