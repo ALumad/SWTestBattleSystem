@@ -1,8 +1,8 @@
 #pragma once
+#include "IO/Events/Events.hpp"
 #include "Utils/Helper.hpp"
 
 #include <cstdint>
-#include <utility>
 #include <variant>
 
 namespace sw::core
@@ -26,7 +26,7 @@ namespace sw::core
 		// because i dont want to think about overflow thats why int64
 		int64_t x{};
 		int64_t y{};
-		bool operator == (const Position& other) const = default;
+		bool operator==(const Position& other) const = default;
 	};
 
 	using Target = Position;
@@ -53,6 +53,18 @@ namespace sw::core
 		uint32_t agility{};
 		uint32_t range_from{};
 		uint32_t range_to{};
+	};
+
+	struct Explosive
+	{
+		uint32_t radius{};
+		uint32_t power{};
+	};
+
+	struct Trigger
+	{
+		int radius{};
+		bool activated{false};
 	};
 
 	struct HasActed

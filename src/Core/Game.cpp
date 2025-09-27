@@ -9,11 +9,15 @@
 
 namespace sw::core
 {
-	Game::Game(uint32_t width, uint32_t height) :
-			width_(width),
-			height_(height)
+	Game::Game()
 	{
-		RegisterSystems();
+		RegisterInternalSystems();
+	}
+
+	void Game::InitMap(uint32_t width, uint32_t height)
+	{
+		width_ = width;
+		height_ = height;
 		EventLog::log(tick_, io::MapCreated{width_, height});
 	}
 
@@ -62,22 +66,29 @@ namespace sw::core
 	bool Game::DoTick()
 	{
 		uint32_t score = 0;
-		for (const auto& system : systems_)
+		for (const auto& [_, category] : systems_)
 		{
-			score = system->Apply(tick_, entities_);
+			for (const auto& system : category)
+			{
+				score = system->Apply(tick_, entities_);
+			}
 		}
 		++tick_;
 		return score > 0;
 	}
 
-	void Game::RegisterSystems()
+	Game& Game::RegisterSystem(SystemCategory category, std::unique_ptr<ISystem>&& system)
+	{
+		systems_[category].emplace_back(std::move(system));
+		return *this;
+	}
+
+	void Game::RegisterInternalSystems()
 	{
 		// Emplace order matters
 		// Maybe add priority, but in that case it looks unnecessary
-		systems_.emplace_back(std::make_unique<AttackSystem>());
-		systems_.emplace_back(std::make_unique<MarchSystem>());
-		systems_.emplace_back(std::make_unique<FinalizeMoveSystem>());
-		systems_.emplace_back(std::make_unique<ScoreSystem>());
+		systems_[SystemCategory::Internal].emplace_back(std::make_unique<FinalizeMoveSystem>());
+		systems_[SystemCategory::Internal].emplace_back(std::make_unique<ScoreSystem>());
 	}
 
 }  // sw::core

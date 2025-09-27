@@ -9,7 +9,6 @@
 
 namespace sw::core
 {
-
 	class Entity
 	{
 	public:
